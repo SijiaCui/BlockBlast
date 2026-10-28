@@ -85,6 +85,9 @@ class BlockGameState:
             3  # Combo resets after this many placements without clears
         )
 
+        # Shuffles each hand's slots; separate from the global random that picks shapes
+        self.order_rng = random.Random()
+
         # Generate initial shapes
         self.current_shapes = self.generate_valid_shapes()
 
@@ -165,16 +168,15 @@ class BlockGameState:
             for j in range(w):
                 if shape.form[i][j]:
                     new[row + i][col + j] = 1
-        # clear full rows
-        for r in range(8):
-            if all(new[r][c] for c in range(8)):
-                for c in range(8):
-                    new[r][c] = 0
-        # clear full cols
-        for c in range(8):
-            if all(new[r][c] for r in range(8)):
-                for r in range(8):
-                    new[r][c] = 0
+        # find full rows and cols before clearing any, as update_grid does
+        full_rows = [r for r in range(8) if all(new[r][c] for c in range(8))]
+        full_cols = [c for c in range(8) if all(new[r][c] for r in range(8))]
+        for r in full_rows:
+            for c in range(8):
+                new[r][c] = 0
+        for c in full_cols:
+            for r in range(8):
+                new[r][c] = 0
         return new
 
     def find_best_placement_for_shape(self, shape):
@@ -221,35 +223,13 @@ class BlockGameState:
         if not position or not hasattr(shape, "form") or not shape.form:
             return self.grid
 
-        # Create a deep copy of the grid
-        new_grid = [row[:] for row in self.grid]
-
-        # Place the shape
-        row, col = position
-        size = [len(shape.form), len(shape.form[0])]
-        for i in range(size[0]):
-            for j in range(size[1]):
-                if shape.form[i][j]:
-                    new_grid[row + i][col + j] = 1  # Mark as filled
-
-        # Clear completed rows
-        for r in range(8):
-            if all(new_grid[r]):
-                for c in range(8):
-                    new_grid[r][c] = 0
-
-        # Clear completed columns
-        for c in range(8):
-            if all(new_grid[r][c] for r in range(8)):
-                for r in range(8):
-                    new_grid[r][c] = 0
-
-        return new_grid
+        return self._simulate_on(self.grid, shape, position)
 
     def generate_valid_shapes(self):
         """
         Greedily pick 3 shapes so each one can be placed on the board
-        updated by the previous placement.
+        updated by the previous placement, then shuffle their slots so the
+        slot order does not reveal the placement order that was checked.
         """
         remaining = list(range(len(self.FORMS)))
         next_shapes = []
@@ -299,6 +279,7 @@ class BlockGameState:
                 if not placed:
                     next_shapes.append(one_by_one)
 
+        self.order_rng.shuffle(next_shapes)
         return next_shapes
 
     def is_valid_placement(self, shape_idx, row, col):
@@ -554,8 +535,10 @@ class BlockGameState:
         with open("blockblast_game/high_score.txt", "w") as file:
             file.write(str(score))
 
-    def reset(self):
-        """Reset the game state."""
+    def reset(self, seed=None):
+        """Reset the game state; seed fixes the slot order of every hand."""
+        if seed is not None:
+            self.order_rng.seed(seed)
         if self.score > self.highest_score:
             self.save_score(self.score)
 

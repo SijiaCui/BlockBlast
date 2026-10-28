@@ -54,7 +54,7 @@ class BlockGameEnv(gym.Env):
         super().reset(seed=seed)
 
         # Reset the game state
-        self.game_state.reset()
+        self.game_state.reset(seed=seed)
 
         # Get the initial observation
         observation = self._get_observation()
