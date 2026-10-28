@@ -85,8 +85,8 @@ class BlockGameState:
             3  # Combo resets after this many placements without clears
         )
 
-        # Shuffles each hand's slots; separate from the global random that picks shapes
-        self.order_rng = random.Random()
+        # Shuffles each hand and picks its check spots; separate from the global random that picks shapes
+        self.order_rng = random.Random(random.getrandbits(64))
 
         # Generate initial shapes
         self.current_shapes = self.generate_valid_shapes()
@@ -227,9 +227,9 @@ class BlockGameState:
 
     def generate_valid_shapes(self):
         """
-        Greedily pick 3 shapes so each one can be placed on the board
-        updated by the previous placement, then shuffle their slots so the
-        slot order does not reveal the placement order that was checked.
+        Greedily pick 3 shapes so each one can be placed, at a random spot,
+        on the board updated by the previous placement, then shuffle their
+        slots so neither slot order nor top-left play replays the check.
         """
         remaining = list(range(len(self.FORMS)))
         next_shapes = []
@@ -241,20 +241,18 @@ class BlockGameState:
             for form_idx in remaining:
                 for var_idx in range(len(self.FORMS[form_idx])):
                     shape = self.Shape([form_idx, var_idx])
-                    # find _any_ valid spot on current_grid
-                    for r in range(8 - len(shape.form) + 1):
-                        for c in range(8 - len(shape.form[0]) + 1):
-                            if self._can_place_on(current_grid, shape, r, c):
-                                # commit to this spot
-                                next_shapes.append(shape)
-                                current_grid = self._simulate_on(
-                                    current_grid, shape, (r, c)
-                                )
-                                placed = True
-                                break
-                        if placed:
-                            break
-                    if placed:
+                    spots = [
+                        (r, c)
+                        for r in range(8 - len(shape.form) + 1)
+                        for c in range(8 - len(shape.form[0]) + 1)
+                        if self._can_place_on(current_grid, shape, r, c)
+                    ]
+                    if spots:
+                        next_shapes.append(shape)
+                        current_grid = self._simulate_on(
+                            current_grid, shape, self.order_rng.choice(spots)
+                        )
+                        placed = True
                         break
                 if placed:
                     remaining.remove(form_idx)
@@ -536,9 +534,8 @@ class BlockGameState:
             file.write(str(score))
 
     def reset(self, seed=None):
-        """Reset the game state; seed fixes the slot order of every hand."""
-        if seed is not None:
-            self.order_rng.seed(seed)
+        """Reset the game state; seed fixes the slot order and check spots of every hand."""
+        self.order_rng.seed(random.getrandbits(64) if seed is None else f"order-{seed}")
         if self.score > self.highest_score:
             self.save_score(self.score)
 

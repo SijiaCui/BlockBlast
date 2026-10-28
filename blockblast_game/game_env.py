@@ -34,7 +34,7 @@ class BlockGameEnv(gym.Env):
                     low=0, high=float("inf"), shape=(1,), dtype=np.float32
                 ),
                 "combo": spaces.Box(
-                    low=0, high=float("inf"), shape=(1,), dtype=np.int8
+                    low=0, high=float("inf"), shape=(1,), dtype=np.int32
                 ),
             }
         )
@@ -166,7 +166,7 @@ class BlockGameEnv(gym.Env):
             "grid": grid,
             "shapes": shapes,
             "score": np.array([state["score"]], dtype=np.float32),
-            "combo": np.array([state["combo"]], dtype=np.int8),
+            "combo": np.array([state["combo"]], dtype=np.int32),
         }
 
     def _calculate_reward(self, valid_placement, old_game_over):
